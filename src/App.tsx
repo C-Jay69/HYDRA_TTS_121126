@@ -18,10 +18,11 @@ import {
   triggerFileDownload 
 } from './utils/audioConcatenator';
 import { hydraStudioBg, hydraMeshBg } from './assets/images';
-import { 
-  synthesizeChunk, 
-  GEMINI_VOICES, 
-  NARRATION_STYLES 
+import {
+  synthesizeChunk,
+  DEFAULT_VOICE_BY_ENGINE,
+  NARRATION_STYLES,
+  voicesForEngine
 } from './services/ttsService';
 import { SampleManuscript } from './data/sampleManuscripts';
 import { Chunk, ManuscriptMeta, SynthesisEngine } from './types';
@@ -35,9 +36,18 @@ export default function App() {
   const [showDocWarning, setShowDocWarning] = useState(false);
 
   // Settings & Voice Configuration
-  const [selectedVoice, setSelectedVoice] = useState<string>('Kore');
+  const [selectedVoice, setSelectedVoice] = useState<string>(DEFAULT_VOICE_BY_ENGINE.kokoro);
   const [selectedStyle, setSelectedStyle] = useState<string>(NARRATION_STYLES[0].prompt);
-  const [engine, setEngine] = useState<SynthesisEngine>('gemini');
+  const [engine, setEngine] = useState<SynthesisEngine>('kokoro');
+
+  // Keep the narrator valid for the active engine (voice ids differ per engine)
+  const handleEngineChange = useCallback((nextEngine: SynthesisEngine) => {
+    setEngine(nextEngine);
+    setSelectedVoice((previousVoice) => {
+      const available = voicesForEngine(nextEngine).some((v) => v.id === previousVoice);
+      return available ? previousVoice : DEFAULT_VOICE_BY_ENGINE[nextEngine];
+    });
+  }, []);
 
   // Batch Queue & Worker State
   const [isSynthesizing, setIsSynthesizing] = useState(false);
@@ -494,7 +504,7 @@ export default function App() {
           selectedStyle={selectedStyle}
           onStyleChange={setSelectedStyle}
           engine={engine}
-          onEngineChange={setEngine}
+          onEngineChange={handleEngineChange}
           onReset={handleReset}
           hasManuscript={Boolean(meta)}
         />

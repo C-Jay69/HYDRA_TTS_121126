@@ -52,6 +52,143 @@ export const GEMINI_VOICES: VoiceOption[] = [
   },
 ];
 
+/**
+ * Local Kokoro-82M voices (hexgrad/Kokoro-82M). Voice ids follow the model's
+ * naming scheme: a/b = American/British English, f/m = female/male.
+ */
+export const KOKORO_VOICES: VoiceOption[] = [
+  {
+    id: 'af_heart',
+    name: 'Heart',
+    gender: 'Female',
+    style: 'Warm, natural American narrator with an even, engaging cadence',
+    description: 'The most balanced Kokoro voice; clear diction without sounding robotic.',
+    recommendedFor: 'Fiction & Memoirs',
+  },
+  {
+    id: 'af_bella',
+    name: 'Bella',
+    gender: 'Female',
+    style: 'Expressive, emotive storytelling delivery',
+    description: 'Bright and lively with pronounced emotional range; great for drama.',
+    recommendedFor: 'Drama & Romance',
+  },
+  {
+    id: 'af_nicole',
+    name: 'Nicole',
+    gender: 'Female',
+    style: 'Soft, breathy, intimate and unhurried',
+    description: 'Quiet and soothing, well suited to meditation and gentle non-fiction.',
+    recommendedFor: 'Meditation & Wellness',
+  },
+  {
+    id: 'af_sarah',
+    name: 'Sarah',
+    gender: 'Female',
+    style: 'Crisp, neutral and professional',
+    description: 'Straightforward, articulate delivery for instructional content.',
+    recommendedFor: 'Non-Fiction & Guides',
+  },
+  {
+    id: 'af_aoede',
+    name: 'Aoede',
+    gender: 'Female',
+    style: 'Lyrical, theatrical and atmospheric',
+    description: 'Musical pacing that suits poetry, classics and fantasy.',
+    recommendedFor: 'Poetry & Classics',
+  },
+  {
+    id: 'am_michael',
+    name: 'Michael',
+    gender: 'Male',
+    style: 'Warm, steady, conversational American narrator',
+    description: 'Reliable mid-range male voice; excellent everyday audiobook delivery.',
+    recommendedFor: 'General Audiobooks',
+  },
+  {
+    id: 'am_fenrir',
+    name: 'Fenrir',
+    gender: 'Male',
+    style: 'Deep, resonant and cinematic',
+    description: 'Commanding low register with gravitas for epic and dark fantasy.',
+    recommendedFor: 'Fantasy & Drama',
+  },
+  {
+    id: 'am_puck',
+    name: 'Puck',
+    gender: 'Male',
+    style: 'Youthful, energetic and spirited',
+    description: 'Fast, lively delivery that fits adventure and sci-fi.',
+    recommendedFor: 'Sci-Fi & Adventure',
+  },
+  {
+    id: 'am_onyx',
+    name: 'Onyx',
+    gender: 'Male',
+    style: 'Dark, measured, suspenseful',
+    description: 'Low, deliberate tone that builds tension in thrillers and mystery.',
+    recommendedFor: 'Thrillers & Mystery',
+  },
+  {
+    id: 'am_adam',
+    name: 'Adam',
+    gender: 'Male',
+    style: 'Neutral, clear, documentary-style',
+    description: 'Even, unadorned delivery for exposition-heavy material.',
+    recommendedFor: 'Documentary & Science',
+  },
+  {
+    id: 'bf_emma',
+    name: 'Emma (UK)',
+    gender: 'Female',
+    style: 'Refined British narration with measured pacing',
+    description: 'Elegant British English voice for literary fiction and essays.',
+    recommendedFor: 'Literary Fiction',
+  },
+  {
+    id: 'bm_george',
+    name: 'George (UK)',
+    gender: 'Male',
+    style: 'Classic British baritone with scholarly poise',
+    description: 'Distinguished British delivery for history and classics.',
+    recommendedFor: 'History & Classics',
+  },
+  {
+    id: 'bm_fable',
+    name: 'Fable (UK)',
+    gender: 'Male',
+    style: 'Warm British storyteller with a wry, narrative lilt',
+    description: 'Character-rich British voice ideal for fantasy and fables.',
+    recommendedFor: 'Fantasy & Fables',
+  },
+];
+
+export const DEFAULT_VOICE_BY_ENGINE: Record<SynthesisEngine, string> = {
+  kokoro: 'af_heart',
+  gemini: 'Kore',
+  webspeech: 'af_heart',
+};
+
+/**
+ * Returns the selectable voices for an engine. Browser speech has no fixed
+ * catalogue, so it reuses the Kokoro names purely as timbre hints.
+ */
+export function voicesForEngine(engine: SynthesisEngine): VoiceOption[] {
+  return engine === 'gemini' ? GEMINI_VOICES : KOKORO_VOICES;
+}
+
+/**
+ * Kokoro has no style-prompt conditioning, so narration styles are mapped onto
+ * a natural pacing adjustment instead.
+ */
+function speedForStyle(stylePrompt: string): number {
+  const prompt = (stylePrompt || '').toLowerCase();
+  if (prompt.includes('dramatic') || prompt.includes('theatrical')) return 1.06;
+  if (prompt.includes('meditative') || prompt.includes('soothing') || prompt.includes('calm')) return 0.93;
+  if (prompt.includes('scholarly') || prompt.includes('documentary')) return 0.97;
+  return 1.0;
+}
+
 export const NARRATION_STYLES = [
   {
     id: 'audiobook_standard',
@@ -102,6 +239,49 @@ export async function getAudioDuration(blob: Blob): Promise<number> {
   } catch (err) {
     return 10;
   }
+}
+
+/**
+ * Synthesizes text using Kokoro-82M running locally through the app's server.
+ * Returns a 24kHz mono WAV.
+ */
+export async function synthesizeChunkKokoro(
+  text: string,
+  voice: string,
+  stylePrompt: string
+): Promise<{ audioUrl: string; audioBlob: Blob; duration: number }> {
+  const response = await fetch('/api/tts/kokoro', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      voice,
+      speed: speedForStyle(stylePrompt),
+    }),
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(
+      errData.error ||
+        `Kokoro synthesis failed (HTTP ${response.status}). Is the local Python environment available?`
+    );
+  }
+
+  const data = await response.json();
+  if (!data.audioBase64) {
+    throw new Error('Kokoro returned an empty audio payload');
+  }
+
+  const mimeType = data.mimeType || 'audio/wav';
+  const blob = base64ToBlob(data.audioBase64, mimeType);
+  const audioUrl = URL.createObjectURL(blob);
+  const duration =
+    typeof data.duration === 'number' && data.duration > 0
+      ? data.duration
+      : await getAudioDuration(blob);
+
+  return { audioUrl, audioBlob: blob, duration };
 }
 
 /**
@@ -165,7 +345,7 @@ export async function synthesizeChunkWebSpeech(
   const data = buffer.getChannelData(0);
 
   // Synthesize soft narrator hum envelope
-  const isFemale = voiceName === 'Kore' || voiceName === 'Zephyr' || voiceName === 'Aoede';
+  const isFemale = /^[ab]f_/.test(voiceName) || voiceName === 'Kore' || voiceName === 'Zephyr' || voiceName === 'Aoede';
   const fundamental = isFemale ? 220 : 130;
 
   for (let i = 0; i < numSamples; i++) {
@@ -202,7 +382,9 @@ export async function synthesizeChunk(
 
   while (attempt <= maxRetries) {
     try {
-      return await synthesizeChunkGemini(text, voice, stylePrompt);
+      return engine === 'kokoro'
+        ? await synthesizeChunkKokoro(text, voice, stylePrompt)
+        : await synthesizeChunkGemini(text, voice, stylePrompt);
     } catch (err: any) {
       lastError = err;
       attempt++;

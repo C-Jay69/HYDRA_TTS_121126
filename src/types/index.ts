@@ -34,7 +34,7 @@ export interface VoiceOption {
   recommendedFor: string;
 }
 
-export type SynthesisEngine = 'gemini' | 'webspeech';
+export type SynthesisEngine = 'kokoro' | 'gemini' | 'webspeech';
 
 export interface TTSConfig {
   voice: string;

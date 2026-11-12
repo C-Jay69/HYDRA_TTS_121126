@@ -103,7 +103,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           HYDRA <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-indigo-300">TTS</span> Studio
         </h2>
         <p className="mt-3 text-sm sm:text-base text-slate-300 max-w-2xl mx-auto">
-          Convert manuscripts, books, and essays into full audiobooks using deterministic smart chunking and Gemini 3.8 Flash TTS synthesis.
+          Convert manuscripts, books, and essays into full audiobooks using deterministic smart chunking and local Kokoro-82M speech synthesis.
         </p>
       </div>
 
