@@ -1,0 +1,6 @@
+{
+  "name": "Manuscript-to-Audiobook Studio",
+  "description": "Convert long-form manuscripts into lifelike audiobooks using intelligent audio chunking and Gemini TTS synthesis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
